@@ -1,0 +1,11 @@
+services:
+  rica-investigadores-service-db:
+    image: postgres:16
+    container_name: rica-investigadores-service-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rica
+      POSTGRES_USER: rica
+      POSTGRES_PASSWORD: rica
+    ports:
+      - "5434:5432"

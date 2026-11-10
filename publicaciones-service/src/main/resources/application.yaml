@@ -6,3 +6,9 @@ spring:
     name: publicaciones-service
   mongodb:
     uri: mongodb://localhost:27019/rica
+  
+  grpc:
+    client:
+      channel:
+        investigadores:
+          target: static://localhost:9090

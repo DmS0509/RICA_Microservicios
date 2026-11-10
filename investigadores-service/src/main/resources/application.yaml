@@ -1,4 +1,4 @@
-server: 
+server:
   port: 8080
 
 spring:
@@ -8,12 +8,15 @@ spring:
     url: jdbc:postgresql://localhost:5434/rica
     username: rica
     password: rica
-    
+
   grpc:
     server:
       port: 9090
   kafka:
     bootstrap-servers: localhost:9092
+    consumer:
+      group-id: investigadores-service
+      auto-offset-reset: earliest
 
 eureka:
   instance:

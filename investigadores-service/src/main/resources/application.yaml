@@ -8,3 +8,7 @@ spring:
     url: jdbc:postgresql://localhost:5434/rica
     username: rica
     password: rica
+    
+  grpc:
+    server:
+      port: 9090

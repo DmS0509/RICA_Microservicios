@@ -4,6 +4,7 @@ import java.net.URI;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,7 +21,7 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/investigadores")
 public class InvestigadorController {
 
-     private final InvestigadorUseCase investigadorService;
+    private final InvestigadorUseCase investigadorService;
 
     public InvestigadorController(InvestigadorUseCase investigadorService) {
         this.investigadorService = investigadorService;
@@ -42,12 +43,18 @@ public class InvestigadorController {
     @PostMapping
     public ResponseEntity<InvestigadorResponse> registrar(@Valid @RequestBody InvestigadorRequest request) {
         Investigador guardado = investigadorService.registrar(
-            request.getNombreCompleto(),
-            request.getCorreoInstitucional(),
-            request.getGrupoInvestigacion());
+                request.getNombreCompleto(),
+                request.getCorreoInstitucional(),
+                request.getGrupoInvestigacion());
         InvestigadorResponse response = InvestigadorMapper.aResponse(guardado);
         return ResponseEntity
                 .created(URI.create("/api/investigadores/" + guardado.getId()))
                 .body(response);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        investigadorService.iniciarEliminacion(id);
+        return ResponseEntity.accepted().build();
     }
 }

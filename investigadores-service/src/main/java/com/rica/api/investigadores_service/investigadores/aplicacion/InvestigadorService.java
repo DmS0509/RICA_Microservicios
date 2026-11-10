@@ -14,7 +14,7 @@ public class InvestigadorService implements InvestigadorUseCase {
 
     private final InvestigadorFactory investigadorFactory;
     private final RepositorioInvestigadores repositorioInvestigadores;
-     private final PublicadorEventos publicadorEventos;
+    private final PublicadorEventos publicadorEventos;
 
     @Override
     public List<Investigador> listarTodos() {
@@ -50,5 +50,30 @@ public class InvestigadorService implements InvestigadorUseCase {
                         "correoInstitucional", correoInstitucional,
                         "nombreCompleto", nombreCompleto));
         return guardado;
+    }
+
+    @Override
+    @Transactional
+    public void iniciarEliminacion(Long id) {
+        Investigador investigador = buscarPorId(id);
+        if (investigador.estaEnEliminacion()) {
+            return; // idempotente: la Saga ya está en curso
+        }
+        investigador.marcarEnEliminacion();
+        repositorioInvestigadores.guardar(investigador);
+
+        String correo = investigador.getCorreoInstitucional().valor();
+        publicadorEventos.publicar(
+                "investigadores.en-eliminacion",
+                correo,
+                Map.of("correoInstitucional", correo));
+    }
+
+    @Override
+    @Transactional
+    public void confirmarEliminacion(String correoInstitucional) {
+        repositorioInvestigadores.buscarPorCorreo(correoInstitucional)
+                .filter(Investigador::estaEnEliminacion)
+                .ifPresent(repositorioInvestigadores::eliminar);
     }
 }

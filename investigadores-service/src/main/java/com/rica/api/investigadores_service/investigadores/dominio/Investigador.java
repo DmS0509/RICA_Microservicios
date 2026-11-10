@@ -4,6 +4,8 @@ import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -13,7 +15,7 @@ import jakarta.persistence.Table;
 @Table(name = "investigadores")
 public class Investigador {
 
-     @Id
+    @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -27,6 +29,10 @@ public class Investigador {
 
     @Column(name = "grupo_investigacion", length = 150)
     private String grupoDeInvestigacion;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EstadoInvestigador estado = EstadoInvestigador.ACTIVO;
 
     public Investigador() {
     }
@@ -69,4 +75,17 @@ public class Investigador {
     public void setGrupoDeInvestigacion(String grupoDeInvestigacion) {
         this.grupoDeInvestigacion = grupoDeInvestigacion;
     }
+
+    public EstadoInvestigador getEstado() {
+        return estado;
+    }
+
+    public boolean estaEnEliminacion() {
+        return estado == EstadoInvestigador.EN_ELIMINACION;
+    }
+
+    public void marcarEnEliminacion() {
+        this.estado = EstadoInvestigador.EN_ELIMINACION;
+    }
+
 }

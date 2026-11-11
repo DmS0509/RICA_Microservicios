@@ -12,10 +12,14 @@ public class PublicacionService implements PublicacionUseCase {
 
     private final RepositorioPublicaciones repositorioPublicaciones;
     private final VerificadorInvestigador verificadorInvestigador;
+    private final PublicadorEventosPublicaciones publicadorEventos;
 
-    public PublicacionService(RepositorioPublicaciones repositorioPublicaciones, VerificadorInvestigador verificadorInvestigador) {
+    public PublicacionService(RepositorioPublicaciones repositorioPublicaciones,
+            VerificadorInvestigador verificadorInvestigador,
+            PublicadorEventosPublicaciones publicadorEventos) {
         this.repositorioPublicaciones = repositorioPublicaciones;
         this.verificadorInvestigador = verificadorInvestigador;
+        this.publicadorEventos = publicadorEventos;
     }
 
     @Override
@@ -24,7 +28,10 @@ public class PublicacionService implements PublicacionUseCase {
             throw new RecursoNoEncontradoException(
                     "No existe un investigador con correo " + publicacion.getInvestigadorCorreo());
         }
-        return repositorioPublicaciones.guardar(publicacion);
+        Publicacion guardada = repositorioPublicaciones.guardar(publicacion);
+        // Solo después de guardar con éxito: si el comando falla, no se anuncia nada.
+        publicadorEventos.publicacionRegistrada(guardada);
+        return guardada;
     }
 
     @Override
@@ -36,6 +43,6 @@ public class PublicacionService implements PublicacionUseCase {
     public Publicacion buscarPorId(String id) {
         return repositorioPublicaciones.buscarPorId(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException(
-                "No se encontró la publicación con id: " + id));
+                        "No se encontró la publicación con id: " + id));
     }
 }

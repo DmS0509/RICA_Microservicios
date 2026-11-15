@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -12,8 +13,14 @@ import org.springframework.stereotype.Component;
 import com.rica.api.publicaciones_service.publicaciones.dominio.Publicacion;
 import com.rica.api.publicaciones_service.publicaciones.infraestructura.salida.persistencia.PublicacionRepository;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+/**
+ * Paso 2 de la Saga (coreografía): investigadores-service avisó que un
+ * investigador está en eliminación. Aquí se marcan sus publicaciones como
+ * huérfanas y se confirma con otro evento.
+ */
 @Component
 public class InvestigadorEnEliminacionListener {
 
@@ -33,15 +40,25 @@ public class InvestigadorEnEliminacionListener {
 
     @KafkaListener(topics = "investigadores.en-eliminacion")
     public void alIniciarseEliminacion(String mensaje) {
-        String correo = objectMapper.readTree(mensaje).get("correoInstitucional").asString();
+        JsonNode evento = objectMapper.readTree(mensaje);
+        String correo = evento.get("correoInstitucional").asString();
+        String correlationId = evento.has("correlationId")
+                ? evento.get("correlationId").asString()
+                : "sin-correlacion";
 
-        List<Publicacion> publicaciones = publicacionRepository.findByInvestigadorCorreo(correo);
-        publicaciones.forEach(Publicacion::marcarComoHuerfana);
-        publicacionRepository.saveAll(publicaciones);
-        log.info("Saga: {} publicaciones de {} marcadas como huérfanas", publicaciones.size(), correo);
+        // try-with-resources: el MDC se restaura al terminar, pase lo que pase.
+        try (MDC.MDCCloseable ignorado = MDC.putCloseable("correlationId", correlationId)) {
+            List<Publicacion> publicaciones = publicacionRepository.findByInvestigadorCorreo(correo);
+            publicaciones.forEach(Publicacion::marcarComoHuerfana);
+            publicacionRepository.saveAll(publicaciones);
+            log.info("Saga: {} publicaciones de {} marcadas como huérfanas", publicaciones.size(), correo);
 
-        String confirmacion = objectMapper.writeValueAsString(
-                Map.of("correoInstitucional", correo, "cantidad", publicaciones.size()));
-        kafkaTemplate.send("publicaciones.marcadas-huerfanas", correo, confirmacion);
+            // La confirmación lleva el mismo id: la traza continúa en el siguiente paso
+            String confirmacion = objectMapper.writeValueAsString(Map.of(
+                    "correoInstitucional", correo,
+                    "cantidad", publicaciones.size(),
+                    "correlationId", correlationId));
+            kafkaTemplate.send("publicaciones.marcadas-huerfanas", correo, confirmacion);
+        }
     }
 }

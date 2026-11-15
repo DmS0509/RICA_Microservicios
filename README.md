@@ -49,3 +49,20 @@ pero obliga a mantener dos copias.
 
 * Reintentar un mensaje venenoso sin fin es peor que perderlo todo:
     - Reintentar sin fin un mensaje venenoso es peor que perderlo porque, mientras se repite el fallo, la partición queda detenida y los mensajes buenos que vienen detrás no se procesan, y al final el mensaje se pierde igual, sin dejar rastro, con el costo adicional de haber bloqueado el servicio. Y es peor que enviarlo a una DLT porque un error como un JSON roto nunca se arregla reintentando, mientras que la DLT lo aparta de inmediato, deja el consumidor libre y conserva el mensaje con su diagnóstico para revisarlo o reprocesarlo después.
+
+--------------------------------------------------- 
+# _TALLER OBSERVABILIDAD Y SAGA PATTERN_
+
+### Discusión: ¿Y si nunca vuelve
+
+1. Si publicaciones-service no pudiera marcar las publicaciones por un error permanente, ¿en qué estado quedaría el investigador y quién se daría cuenta?
+    - Quedaría en `EN_ELIMINACION` para siempre: ni se elimina ni vuelve a ACTIVO, y su ficha en consultas muestra ese mismo estado. Hoy nadie se daría cuenta de forma activa. El listener de publicaciones no tiene Dead Letter Topic, y tras los reintentos por defecto Kafka descarta el mensaje y avanza el offset, así que ni siquiera el lag lo delataría. Solo quedaría un error en el log, y alguien tendría que ver el estado por casualidad.
+
+2. Diseña una compensación: ¿qué evento, quién lo consume y a qué estado vuelve el investigador? ¿Sería idempotente?
+    - Si publicaciones-service no puede completar su paso, publicaría `publicaciones.marcado-fallido` con el correo, el correlationId y el motivo. investigadores-service lo consumiría y devolvería al investigador de `EN_ELIMINACION` a `ACTIVO`, con un método de dominio nuevo. Además debería desmarcar las publicaciones que ya se hubieran marcado como huérfanas, y consultas-service lo proyectaría para que la ficha vuelva a ACTIVO. Sería idempotente si el consumidor solo actúa cuando el investigador sigue en `EN_ELIMINACION`, igual que `confirmarEliminacion` filtra con `estaEnEliminacion()`. Así, recibir el evento dos veces no cambia nada.
+
+3. ¿Qué métrica y alerta definirías para detectar Sagas atascadas?
+    - Una métrica con el número de investigadores en `EN_ELIMINACION` desde hace más de 10 minutos, y una alerta cuando sea mayor que 0. Para eso hace falta guardar cuándo entró en ese estado, porque hoy `Investigador` no tiene esa fecha. Complementaría con el lag del grupo `publicaciones-service` y la cantidad de mensajes en las DLT, pero la métrica principal es la de Sagas atascadas, porque el lag no detecta el caso del mensaje descartado.
+
+4. ¿Coreografiada u orquestada si se le agregaran cuatro pasos más?
+    - Orquestada. Con seis pasos, en la coreografía el flujo queda repartido en los listeners de cada servicio, y nadie ve el proceso completo, ni quién falla, ni en qué orden compensar. Un orquestador, por ejemplo dentro de investigadores-service, concentra el estado de la Saga, los tiempos de espera y el orden de las compensaciones en un solo lugar, y se observa mucho mejor. El costo es un punto central más acoplado, pero con tantos pasos compensa. Con los dos pasos actuales la coreografía sigue siendo suficiente.
